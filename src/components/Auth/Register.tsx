@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Camera, Upload, Mail, Phone } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { supabase, createProfile, createVerification } from '../../lib/supabase';
 
 const Register: React.FC = () => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [verificationSent, setVerificationSent] = useState(false);
   const [formData, setFormData] = useState({
@@ -35,6 +31,14 @@ const Register: React.FC = () => {
       // In a real app, this would call your backend to send verification codes
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`Verification code for ${type}: ${code}`);
+      
+      await createVerification({
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        type: type,
+        status: 'pending',
+        code: code
+      });
+      
       setVerificationSent(true);
     } catch (error) {
       console.error('Error sending verification code:', error);
@@ -43,8 +47,20 @@ const Register: React.FC = () => {
 
   const verifyCode = async (type: 'email' | 'phone') => {
     try {
-      // Verify the code with your backend
-      console.log(`Verifying ${type} code`);
+      const { data: verificationData } = await supabase
+        .from('verifications')
+        .select('*')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('type', type)
+        .eq('status', 'pending')
+        .single();
+
+      if (verificationData?.code === formData[`${type}VerificationCode`]) {
+        await supabase
+          .from('verifications')
+          .update({ status: 'verified', verified_at: new Date().toISOString() })
+          .eq('id', verificationData.id);
+      }
     } catch (error) {
       console.error('Error verifying code:', error);
     }
@@ -61,50 +77,50 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      // Upload profile photo and government ID to Supabase storage
+      const userId = authData.user?.id;
+      if (!userId) throw new Error('No user ID');
+
+      // Upload profile photo and government ID
       if (formData.profilePhoto) {
         const { error: uploadError } = await supabase.storage
           .from('profile-photos')
-          .upload(`${data.user?.id}/profile`, formData.profilePhoto);
+          .upload(`${userId}/profile`, formData.profilePhoto);
         if (uploadError) throw uploadError;
       }
 
       if (formData.governmentId) {
         const { error: uploadError } = await supabase.storage
           .from('government-ids')
-          .upload(`${data.user?.id}/id`, formData.governmentId);
+          .upload(`${userId}/id`, formData.governmentId);
         if (uploadError) throw uploadError;
       }
 
-      // Create user profile in the database
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            user_id: data.user?.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            date_of_birth: formData.dateOfBirth,
-            gender: formData.gender,
-            location: formData.location,
-            occupation: formData.occupation,
-            bio: formData.bio,
-            interests: formData.interests,
-            phone_number: formData.phoneNumber,
-          },
-        ]);
+      // Create user profile
+      const { error: profileError } = await createProfile({
+        user_id: userId,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        location: formData.location,
+        occupation: formData.occupation,
+        bio: formData.bio,
+        interests: formData.interests,
+        phone_number: formData.phoneNumber,
+        loyalty_score: 0
+      });
 
       if (profileError) throw profileError;
 
-      // Redirect to loyalty test
-      window.location.href = '/loyalty-test';
+      // Navigate to loyalty test
+      navigate('/loyalty-test');
     } catch (error) {
       console.error('Error during registration:', error);
     }

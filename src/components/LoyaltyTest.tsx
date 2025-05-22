@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle, MessageCircle, Video } from 'lucide-react';
+import { supabase, saveLoyaltyTest } from '../lib/supabase';
 
 interface Question {
   id: number;
@@ -177,19 +179,42 @@ const questions: Question[] = [
 ];
 
 const LoyaltyTest: React.FC = () => {
+  const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [showMockInterview, setShowMockInterview] = useState(false);
   const [showCommunicationTraining, setShowCommunicationTraining] = useState(false);
 
-  const handleAnswer = (optionIndex: number) => {
+  useEffect(() => {
+    const shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+    questions.splice(0, questions.length, ...shuffledQuestions);
+  }, []);
+
+  const handleAnswer = async (optionIndex: number) => {
     const newAnswers = [...answers, optionIndex];
     setAnswers(newAnswers);
 
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
+      const score = calculateScore();
+      
+      const user = await supabase.auth.getUser();
+      if (user.data.user) {
+        await saveLoyaltyTest({
+          user_id: user.data.user.id,
+          score: score,
+          answers: newAnswers,
+          completed_at: new Date().toISOString()
+        });
+
+        await supabase
+          .from('profiles')
+          .update({ loyalty_score: score })
+          .eq('user_id', user.data.user.id);
+      }
+
       setShowResults(true);
     }
   };
