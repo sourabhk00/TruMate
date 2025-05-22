@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Upload } from 'lucide-react';
+import { Camera, Upload, Mail, Phone } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const Register: React.FC = () => {
   const [step, setStep] = useState(1);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -15,10 +22,33 @@ const Register: React.FC = () => {
     location: '',
     occupation: '',
     bio: '',
-    interests: [],
-    profilePhoto: null,
-    governmentId: null,
+    interests: [] as string[],
+    profilePhoto: null as File | null,
+    governmentId: null as File | null,
+    phoneNumber: '',
+    emailVerificationCode: '',
+    phoneVerificationCode: '',
   });
+
+  const sendVerificationCode = async (type: 'email' | 'phone') => {
+    try {
+      // In a real app, this would call your backend to send verification codes
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log(`Verification code for ${type}: ${code}`);
+      setVerificationSent(true);
+    } catch (error) {
+      console.error('Error sending verification code:', error);
+    }
+  };
+
+  const verifyCode = async (type: 'email' | 'phone') => {
+    try {
+      // Verify the code with your backend
+      console.log(`Verifying ${type} code`);
+    } catch (error) {
+      console.error('Error verifying code:', error);
+    }
+  };
 
   const handleNext = () => {
     setStep(step + 1);
@@ -28,10 +58,56 @@ const Register: React.FC = () => {
     setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle registration logic here
-    console.log(formData);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) throw error;
+
+      // Upload profile photo and government ID to Supabase storage
+      if (formData.profilePhoto) {
+        const { error: uploadError } = await supabase.storage
+          .from('profile-photos')
+          .upload(`${data.user?.id}/profile`, formData.profilePhoto);
+        if (uploadError) throw uploadError;
+      }
+
+      if (formData.governmentId) {
+        const { error: uploadError } = await supabase.storage
+          .from('government-ids')
+          .upload(`${data.user?.id}/id`, formData.governmentId);
+        if (uploadError) throw uploadError;
+      }
+
+      // Create user profile in the database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            user_id: data.user?.id,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            date_of_birth: formData.dateOfBirth,
+            gender: formData.gender,
+            location: formData.location,
+            occupation: formData.occupation,
+            bio: formData.bio,
+            interests: formData.interests,
+            phone_number: formData.phoneNumber,
+          },
+        ]);
+
+      if (profileError) throw profileError;
+
+      // Redirect to loyalty test
+      window.location.href = '/loyalty-test';
+    } catch (error) {
+      console.error('Error during registration:', error);
+    }
   };
 
   return (
@@ -39,7 +115,7 @@ const Register: React.FC = () => {
       <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-blue-900">Join TruMate</h2>
-          <p className="mt-2 text-gray-600">Step {step} of 3</p>
+          <p className="mt-2 text-gray-600">Step {step} of 4</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -47,14 +123,88 @@ const Register: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                />
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="email"
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => sendVerificationCode('email')}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center"
+                  >
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </button>
+                </div>
               </div>
+
+              {verificationSent && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Email Verification Code</label>
+                  <div className="mt-1 flex rounded-md shadow-sm">
+                    <input
+                      type="text"
+                      required
+                      className="flex-1 rounded-none rounded-l-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      value={formData.emailVerificationCode}
+                      onChange={(e) => setFormData({...formData, emailVerificationCode: e.target.value})}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => verifyCode('email')}
+                      className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="tel"
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => sendVerificationCode('phone')}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center"
+                  >
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              {verificationSent && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Verification Code</label>
+                  <div className="mt-1 flex rounded-md shadow-sm">
+                    <input
+                      type="text"
+                      required
+                      className="flex-1 rounded-none rounded-l-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      value={formData.phoneVerificationCode}
+                      onChange={(e) => setFormData({...formData, phoneVerificationCode: e.target.value})}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => verifyCode('phone')}
+                      className="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700">Password</label>
                 <input
@@ -142,6 +292,51 @@ const Register: React.FC = () => {
           {step === 3 && (
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700">Occupation</label>
+                <input
+                  type="text"
+                  required
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={formData.occupation}
+                  onChange={(e) => setFormData({...formData, occupation: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Bio</label>
+                <textarea
+                  rows={4}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={formData.bio}
+                  onChange={(e) => setFormData({...formData, bio: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Interests</label>
+                <div className="mt-2 space-y-2">
+                  {['Reading', 'Travel', 'Music', 'Sports', 'Cooking', 'Art', 'Technology', 'Nature'].map((interest) => (
+                    <label key={interest} className="inline-flex items-center mr-4">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={formData.interests.includes(interest)}
+                        onChange={(e) => {
+                          const newInterests = e.target.checked
+                            ? [...formData.interests, interest]
+                            : formData.interests.filter(i => i !== interest);
+                          setFormData({...formData, interests: newInterests});
+                        }}
+                      />
+                      <span className="ml-2">{interest}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700">Profile Photo</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                   <div className="space-y-1 text-center">
@@ -149,7 +344,12 @@ const Register: React.FC = () => {
                     <div className="flex text-sm text-gray-600">
                       <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                         <span>Upload a photo</span>
-                        <input type="file" className="sr-only" accept="image/*" onChange={(e) => setFormData({...formData, profilePhoto: e.target.files?.[0] || null})} />
+                        <input
+                          type="file"
+                          className="sr-only"
+                          accept="image/*"
+                          onChange={(e) => setFormData({...formData, profilePhoto: e.target.files?.[0] || null})}
+                        />
                       </label>
                     </div>
                   </div>
@@ -164,21 +364,16 @@ const Register: React.FC = () => {
                     <div className="flex text-sm text-gray-600">
                       <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
                         <span>Upload ID</span>
-                        <input type="file" className="sr-only" accept="image/*" onChange={(e) => setFormData({...formData, governmentId: e.target.files?.[0] || null})} />
+                        <input
+                          type="file"
+                          className="sr-only"
+                          accept="image/*"
+                          onChange={(e) => setFormData({...formData, governmentId: e.target.files?.[0] || null})}
+                        />
                       </label>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Bio</label>
-                <textarea
-                  rows={4}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  value={formData.bio}
-                  onChange={(e) => setFormData({...formData, bio: e.target.value})}
-                />
               </div>
             </div>
           )}
@@ -193,7 +388,7 @@ const Register: React.FC = () => {
                 Back
               </button>
             )}
-            {step < 3 ? (
+            {step < 4 ? (
               <button
                 type="button"
                 onClick={handleNext}
