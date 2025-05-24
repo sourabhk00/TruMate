@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Camera, Upload, Mail, Phone } from 'lucide-react';
 import { supabase, createProfile, createVerification } from '../../lib/supabase';
@@ -7,6 +7,8 @@ const Register: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -26,31 +28,51 @@ const Register: React.FC = () => {
     phoneVerificationCode: '',
   });
 
+  useEffect(() => {
+    let timer: number;
+    if (cooldown > 0) {
+      timer = window.setInterval(() => {
+        setCooldown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [cooldown]);
+
   const sendVerificationCode = async (type: 'email' | 'phone') => {
     try {
-      // In a real app, this would call your backend to send verification codes
+      if (cooldown > 0) {
+        setError(`Please wait ${cooldown} seconds before requesting another code`);
+        return;
+      }
+
+      setError(null);
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`Verification code for ${type}: ${code}`);
       
-      await createVerification({
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+      const { error: verificationError } = await createVerification({
         type: type,
         status: 'pending',
         code: code
       });
+
+      if (verificationError) throw verificationError;
       
       setVerificationSent(true);
-    } catch (error) {
+      setCooldown(55); // Set cooldown timer
+    } catch (error: any) {
       console.error('Error sending verification code:', error);
+      setError(error.message);
     }
   };
 
   const verifyCode = async (type: 'email' | 'phone') => {
     try {
+      setError(null);
       const { data: verificationData } = await supabase
         .from('verifications')
         .select('*')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
         .eq('type', type)
         .eq('status', 'pending')
         .single();
@@ -60,23 +82,36 @@ const Register: React.FC = () => {
           .from('verifications')
           .update({ status: 'verified', verified_at: new Date().toISOString() })
           .eq('id', verificationData.id);
+      } else {
+        throw new Error('Invalid verification code');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error verifying code:', error);
+      setError(error.message);
     }
   };
 
   const handleNext = () => {
+    setError(null);
     setStep(step + 1);
   };
 
   const handleBack = () => {
+    setError(null);
     setStep(step - 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     try {
+      // Password validation
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -85,9 +120,9 @@ const Register: React.FC = () => {
       if (authError) throw authError;
 
       const userId = authData.user?.id;
-      if (!userId) throw new Error('No user ID');
+      if (!userId) throw new Error('No user ID returned from signup');
 
-      // Upload profile photo and government ID
+      // Upload files if provided
       if (formData.profilePhoto) {
         const { error: uploadError } = await supabase.storage
           .from('profile-photos')
@@ -102,7 +137,7 @@ const Register: React.FC = () => {
         if (uploadError) throw uploadError;
       }
 
-      // Create user profile
+      // Create user profile with RLS-compliant data
       const { error: profileError } = await createProfile({
         user_id: userId,
         first_name: formData.firstName,
@@ -110,8 +145,8 @@ const Register: React.FC = () => {
         date_of_birth: formData.dateOfBirth,
         gender: formData.gender,
         location: formData.location,
-        occupation: formData.occupation,
-        bio: formData.bio,
+        occupation: formData.occupation || '',
+        bio: formData.bio || '',
         interests: formData.interests,
         phone_number: formData.phoneNumber,
         loyalty_score: 0
@@ -121,8 +156,9 @@ const Register: React.FC = () => {
 
       // Navigate to loyalty test
       navigate('/loyalty-test');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during registration:', error);
+      setError(error.message);
     }
   };
 
@@ -133,6 +169,12 @@ const Register: React.FC = () => {
           <h2 className="text-3xl font-bold text-blue-900">Join TruMate</h2>
           <p className="mt-2 text-gray-600">Step {step} of 4</p>
         </div>
+
+        {error && (
+          <div className="mb-4 p-4 text-red-700 bg-red-100 rounded-lg">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {step === 1 && (
@@ -149,10 +191,12 @@ const Register: React.FC = () => {
                   />
                   <button
                     type="button"
+                    disabled={cooldown > 0}
                     onClick={() => sendVerificationCode('email')}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center"
+                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Mail className="h-5 w-5 text-gray-400" />
+                    {cooldown > 0 && <span className="ml-2">{cooldown}s</span>}
                   </button>
                 </div>
               </div>
@@ -191,10 +235,12 @@ const Register: React.FC = () => {
                   />
                   <button
                     type="button"
+                    disabled={cooldown > 0}
                     onClick={() => sendVerificationCode('phone')}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center"
+                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Phone className="h-5 w-5 text-gray-400" />
+                    {cooldown > 0 && <span className="ml-2">{cooldown}s</span>}
                   </button>
                 </div>
               </div>
@@ -311,7 +357,6 @@ const Register: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700">Occupation</label>
                 <input
                   type="text"
-                  required
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   value={formData.occupation}
                   onChange={(e) => setFormData({...formData, occupation: e.target.value})}

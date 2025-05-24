@@ -11,9 +11,20 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper functions for database operations
 export async function createProfile(profileData: any) {
+  // Wait for the session to be established
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('No authenticated session');
+  }
+
   const { data, error } = await supabase
     .from('profiles')
-    .insert([profileData]);
+    .insert([{
+      ...profileData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }]);
   
   return { data, error };
 }
@@ -21,24 +32,47 @@ export async function createProfile(profileData: any) {
 export async function updateProfile(userId: string, profileData: any) {
   const { data, error } = await supabase
     .from('profiles')
-    .update(profileData)
+    .update({
+      ...profileData,
+      updated_at: new Date().toISOString()
+    })
     .eq('user_id', userId);
   
   return { data, error };
 }
 
 export async function createVerification(verificationData: any) {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('No authenticated session');
+  }
+
   const { data, error } = await supabase
     .from('verifications')
-    .insert([verificationData]);
+    .insert([{
+      ...verificationData,
+      user_id: session.user.id,
+      created_at: new Date().toISOString()
+    }]);
   
   return { data, error };
 }
 
 export async function saveLoyaltyTest(testData: any) {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('No authenticated session');
+  }
+
   const { data, error } = await supabase
     .from('loyalty_tests')
-    .insert([testData]);
+    .insert([{
+      ...testData,
+      user_id: session.user.id,
+      created_at: new Date().toISOString()
+    }]);
   
   return { data, error };
 }
