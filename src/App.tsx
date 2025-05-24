@@ -14,6 +14,7 @@ import Register from './components/Auth/Register';
 import LoyaltyTest from './components/LoyaltyTest';
 import MockInterview from './components/AITraining/MockInterview';
 import CommunicationTraining from './components/AITraining/CommunicationTraining';
+import PaymentSuccess from './components/PaymentSuccess';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -66,6 +67,10 @@ function App() {
             path="/communication-training" 
             element={isAuthenticated ? <CommunicationTraining /> : <Navigate to="/login" />} 
           />
+          <Route 
+            path="/payment-success" 
+            element={isAuthenticated ? <PaymentSuccess /> : <Navigate to="/login" />} 
+          />
         </Routes>
         <Footer />
       </div>
@@ -73,4 +78,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

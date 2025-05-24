@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import PaymentForm from './PaymentForm';
 
 const Pricing: React.FC = () => {
   return (
@@ -76,9 +77,7 @@ const Pricing: React.FC = () => {
               ))}
             </ul>
             <div className="mt-8">
-              <a href="#download" className="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors">
-                Get Premium
-              </a>
+              <PaymentForm priceId="premium" amount={1299} />
             </div>
           </div>
 
@@ -111,9 +110,7 @@ const Pricing: React.FC = () => {
               ))}
             </ul>
             <div className="mt-8">
-              <a href="#download" className="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
-                Go Elite
-              </a>
+              <PaymentForm priceId="elite" amount={2499} />
             </div>
           </div>
         </div>
