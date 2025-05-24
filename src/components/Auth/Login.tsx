@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { signIn } from '../../lib/supabase';
 
 const Login: React.FC = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log(formData);
+    setError(null);
+
+    try {
+      const { error } = await signIn(formData.email, formData.password);
+      if (error) throw error;
+      navigate('/loyalty-test');
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -20,6 +30,12 @@ const Login: React.FC = () => {
           <h2 className="text-3xl font-bold text-blue-900">Welcome Back</h2>
           <p className="mt-2 text-gray-600">Sign in to your TruMate account</p>
         </div>
+
+        {error && (
+          <div className="mb-4 p-4 text-red-700 bg-red-100 rounded-lg">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>

@@ -1,5 +1,6 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { getCurrentUser } from './lib/supabase';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Features from './components/Features';
@@ -15,10 +16,25 @@ import MockInterview from './components/AITraining/MockInterview';
 import CommunicationTraining from './components/AITraining/CommunicationTraining';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  async function checkUser() {
+    const { user } = await getCurrentUser();
+    setIsAuthenticated(!!user);
+  }
+
+  if (isAuthenticated === null) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <Router>
       <div className="min-h-screen font-sans">
-        <Navbar />
+        <Navbar isAuthenticated={isAuthenticated} />
         <Routes>
           <Route path="/" element={
             <main>
@@ -30,16 +46,29 @@ function App() {
               <CallToAction />
             </main>
           } />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/loyalty-test" element={<LoyaltyTest />} />
-          <Route path="/mock-interview" element={<MockInterview />} />
-          <Route path="/communication-training" element={<CommunicationTraining />} />
+          <Route 
+            path="/login" 
+            element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Login />} 
+          />
+          <Route 
+            path="/register" 
+            element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Register />} 
+          />
+          <Route 
+            path="/loyalty-test" 
+            element={isAuthenticated ? <LoyaltyTest /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/mock-interview" 
+            element={isAuthenticated ? <MockInterview /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/communication-training" 
+            element={isAuthenticated ? <CommunicationTraining /> : <Navigate to="/login" />} 
+          />
         </Routes>
         <Footer />
       </div>
     </Router>
   );
 }
-
-export default App;
