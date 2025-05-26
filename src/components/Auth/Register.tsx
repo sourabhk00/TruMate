@@ -9,6 +9,8 @@ const Register: React.FC = () => {
   const [verificationSent, setVerificationSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,6 +39,9 @@ const Register: React.FC = () => {
     }
     return () => {
       if (timer) clearInterval(timer);
+      setVerificationSent(false);
+      setCooldown(0);
+      setError(null);
     };
   }, [cooldown]);
 
@@ -60,7 +65,7 @@ const Register: React.FC = () => {
       if (verificationError) throw verificationError;
       
       setVerificationSent(true);
-      setCooldown(55); // Set cooldown timer
+      setCooldown(55);
     } catch (error: any) {
       console.error('Error sending verification code:', error);
       setError(error.message);
@@ -70,6 +75,8 @@ const Register: React.FC = () => {
   const verifyCode = async (type: 'email' | 'phone') => {
     try {
       setError(null);
+      const code = type === 'email' ? formData.emailVerificationCode : formData.phoneVerificationCode;
+      
       const { data: verificationData } = await supabase
         .from('verifications')
         .select('*')
@@ -77,11 +84,17 @@ const Register: React.FC = () => {
         .eq('status', 'pending')
         .single();
 
-      if (verificationData?.code === formData[`${type}VerificationCode`]) {
+      if (verificationData?.code === code) {
         await supabase
           .from('verifications')
           .update({ status: 'verified', verified_at: new Date().toISOString() })
           .eq('id', verificationData.id);
+          
+        if (type === 'email') {
+          setEmailVerified(true);
+        } else {
+          setPhoneVerified(true);
+        }
       } else {
         throw new Error('Invalid verification code');
       }
@@ -93,7 +106,15 @@ const Register: React.FC = () => {
 
   const handleNext = () => {
     setError(null);
+    
+    if (step === 1 && (!emailVerified || !phoneVerified)) {
+      setError('Please verify both email and phone number before proceeding');
+      return;
+    }
+    
     setStep(step + 1);
+    setVerificationSent(false);
+    setCooldown(0);
   };
 
   const handleBack = () => {
@@ -106,7 +127,10 @@ const Register: React.FC = () => {
     setError(null);
 
     try {
-      // Password validation
+      if (!emailVerified || !phoneVerified) {
+        throw new Error('Please verify both email and phone number');
+      }
+
       if (formData.password !== formData.confirmPassword) {
         throw new Error('Passwords do not match');
       }
@@ -118,6 +142,10 @@ const Register: React.FC = () => {
       });
 
       if (authError) throw authError;
+
+      if (!authData.session) {
+        throw new Error('No authenticated session');
+      }
 
       const userId = authData.user?.id;
       if (!userId) throw new Error('No user ID returned from signup');
@@ -137,7 +165,7 @@ const Register: React.FC = () => {
         if (uploadError) throw uploadError;
       }
 
-      // Create user profile with RLS-compliant data
+      // Create user profile
       const { error: profileError } = await createProfile({
         user_id: userId,
         first_name: formData.firstName,
@@ -191,17 +219,17 @@ const Register: React.FC = () => {
                   />
                   <button
                     type="button"
-                    disabled={cooldown > 0}
+                    disabled={cooldown > 0 || emailVerified}
                     onClick={() => sendVerificationCode('email')}
-                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${(cooldown > 0 || emailVerified) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <Mail className="h-5 w-5 text-gray-400" />
+                    <Mail className={`h-5 w-5 ${emailVerified ? 'text-green-500' : 'text-gray-400'}`} />
                     {cooldown > 0 && <span className="ml-2">{cooldown}s</span>}
                   </button>
                 </div>
               </div>
 
-              {verificationSent && (
+              {verificationSent && !emailVerified && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Email Verification Code</label>
                   <div className="mt-1 flex rounded-md shadow-sm">
@@ -235,17 +263,17 @@ const Register: React.FC = () => {
                   />
                   <button
                     type="button"
-                    disabled={cooldown > 0}
+                    disabled={cooldown > 0 || phoneVerified}
                     onClick={() => sendVerificationCode('phone')}
-                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`absolute inset-y-0 right-0 px-3 flex items-center ${(cooldown > 0 || phoneVerified) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <Phone className="h-5 w-5 text-gray-400" />
+                    <Phone className={`h-5 w-5 ${phoneVerified ? 'text-green-500' : 'text-gray-400'}`} />
                     {cooldown > 0 && <span className="ml-2">{cooldown}s</span>}
                   </button>
                 </div>
               </div>
 
-              {verificationSent && (
+              {verificationSent && !phoneVerified && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Phone Verification Code</label>
                   <div className="mt-1 flex rounded-md shadow-sm">
