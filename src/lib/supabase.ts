@@ -54,7 +54,8 @@ export async function createVerification(verificationData: any) {
       ...verificationData,
       user_id: session.user.id,
       created_at: new Date().toISOString()
-    }]);
+    }])
+    .select();
   
   return { data, error };
 }
