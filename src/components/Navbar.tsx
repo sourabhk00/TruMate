@@ -1,9 +1,20 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Heart, Menu, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Heart, Menu, X, LogOut } from 'lucide-react';
+import { signOut } from '../lib/supabase';
 
-const Navbar: React.FC = () => {
+interface NavbarProps {
+  isAuthenticated: boolean;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ isAuthenticated }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white bg-opacity-90 backdrop-blur-md z-50 shadow-sm">
@@ -26,15 +37,29 @@ const Navbar: React.FC = () => {
             <Link to="/#pricing" className="text-blue-800 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
               Pricing
             </Link>
-            <Link to="/loyalty-test" className="text-blue-800 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-              Loyalty Test
-            </Link>
-            <Link to="/login" className="text-blue-800 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-              Login
-            </Link>
-            <Link to="/register" className="bg-rose-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-rose-700 transition-colors">
-              Sign Up
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/loyalty-test" className="text-blue-800 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                  Loyalty Test
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center text-rose-600 hover:text-rose-700 px-3 py-2 text-sm font-medium transition-colors"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-blue-800 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+                  Login
+                </Link>
+                <Link to="/register" className="bg-rose-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-rose-700 transition-colors">
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
           
           <div className="md:hidden flex items-center">
@@ -76,27 +101,44 @@ const Navbar: React.FC = () => {
             >
               Pricing
             </Link>
-            <Link 
-              to="/loyalty-test" 
-              className="text-blue-800 hover:text-blue-600 px-3 py-2 text-base font-medium"
-              onClick={() => setIsOpen(false)}
-            >
-              Loyalty Test
-            </Link>
-            <Link 
-              to="/login" 
-              className="text-blue-800 hover:text-blue-600 px-3 py-2 text-base font-medium"
-              onClick={() => setIsOpen(false)}
-            >
-              Login
-            </Link>
-            <Link 
-              to="/register" 
-              className="bg-rose-600 text-white px-4 py-2 rounded-full text-base font-medium hover:bg-rose-700 transition-colors text-center"
-              onClick={() => setIsOpen(false)}
-            >
-              Sign Up
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link 
+                  to="/loyalty-test" 
+                  className="text-blue-800 hover:text-blue-600 px-3 py-2 text-base font-medium"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Loyalty Test
+                </Link>
+                <button
+                  onClick={() => {
+                    handleSignOut();
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center text-rose-600 hover:text-rose-700 px-3 py-2 text-base font-medium"
+                >
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link 
+                  to="/login" 
+                  className="text-blue-800 hover:text-blue-600 px-3 py-2 text-base font-medium"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Login
+                </Link>
+                <Link 
+                  to="/register" 
+                  className="bg-rose-600 text-white px-4 py-2 rounded-full text-base font-medium hover:bg-rose-700 transition-colors text-center"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

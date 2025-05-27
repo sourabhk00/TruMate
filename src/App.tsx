@@ -29,49 +29,55 @@ function App() {
   }
 
   if (isAuthenticated === null) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-rose-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
   }
 
   return (
     <Router>
       <div className="min-h-screen font-sans">
         <Navbar isAuthenticated={isAuthenticated} />
-        <Routes>
-          <Route path="/" element={
-            <main>
-              <Hero />
-              <Features />
-              <LoyaltyScore />
-              <HowItWorks />
-              <Pricing />
-              <CallToAction />
-            </main>
-          } />
-          <Route 
-            path="/login" 
-            element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Login />} 
-          />
-          <Route 
-            path="/register" 
-            element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Register />} 
-          />
-          <Route 
-            path="/loyalty-test" 
-            element={isAuthenticated ? <LoyaltyTest /> : <Navigate to="/login" />} 
-          />
-          <Route 
-            path="/mock-interview" 
-            element={isAuthenticated ? <MockInterview /> : <Navigate to="/login" />} 
-          />
-          <Route 
-            path="/communication-training" 
-            element={isAuthenticated ? <CommunicationTraining /> : <Navigate to="/login" />} 
-          />
-          <Route 
-            path="/payment-success" 
-            element={isAuthenticated ? <PaymentSuccess /> : <Navigate to="/login" />} 
-          />
-        </Routes>
+        <div className="pt-16">
+          <Routes>
+            <Route path="/" element={
+              <main>
+                <Hero />
+                <Features />
+                <LoyaltyScore />
+                <HowItWorks />
+                <Pricing />
+                <CallToAction />
+              </main>
+            } />
+            <Route 
+              path="/login" 
+              element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Login />} 
+            />
+            <Route 
+              path="/register" 
+              element={isAuthenticated ? <Navigate to="/loyalty-test" /> : <Register />} 
+            />
+            <Route 
+              path="/loyalty-test" 
+              element={isAuthenticated ? <LoyaltyTest /> : <Navigate to="/login" />} 
+            />
+            <Route 
+              path="/mock-interview" 
+              element={isAuthenticated ? <MockInterview /> : <Navigate to="/login" />} 
+            />
+            <Route 
+              path="/communication-training" 
+              element={isAuthenticated ? <CommunicationTraining /> : <Navigate to="/login" />} 
+            />
+            <Route 
+              path="/payment-success" 
+              element={isAuthenticated ? <PaymentSuccess /> : <Navigate to="/login" />} 
+            />
+          </Routes>
+        </div>
         <Footer />
       </div>
     </Router>
